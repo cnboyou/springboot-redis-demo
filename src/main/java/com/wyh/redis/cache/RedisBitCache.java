@@ -4,6 +4,7 @@ import cn.hutool.core.date.DateUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.RedisStringCommands;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
@@ -19,13 +20,13 @@ import java.util.Set;
  * @Description: TODO
  */
 @Component
-public class RedisCache {
-    private static final Logger logger = LoggerFactory.getLogger(RedisCache.class);
+public class RedisBitCache {
+    private static final Logger logger = LoggerFactory.getLogger(RedisBitCache.class);
 
     private final RedisTemplate redisTemplate;
 
     @Autowired
-    public RedisCache(RedisTemplate redisTemplate) {
+    public RedisBitCache(RedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
 
@@ -74,46 +75,42 @@ public class RedisCache {
                 -> redisConnection.bitCount(key.getBytes()));
     }
 
-    /*聚合统计*/
-    /**
-     * 交集
-     * 案例：统计双方的共同好友
-     */
-    public Set getCommonFriend(Integer userId1, Integer userId2) {
-        String key1 = "user:id:f:"+userId1;
-        String key2 = "user:id:f:"+userId2;
-        return redisTemplate.opsForSet().intersect(key1, key2);
+    // bitmap的测试相关
+
+    public Boolean setBit(String key, Integer index, Boolean tag) {
+        return (Boolean) redisTemplate.execute((RedisCallback<Boolean>) con -> con.setBit(key.getBytes(), index, tag));
+    }
+
+    public Boolean getBit(String key, Integer index) {
+        return (Boolean) redisTemplate.execute((RedisCallback<Boolean>) con -> con.getBit(key.getBytes(), index));
     }
 
     /**
-     * 返回多个集合的并集  sunion
+     * 统计bitmap中，value为1的个数，非常适用于统计网站的每日活跃用户数等类似的场景
      *
-     * @param key1
-     * @param key2
+     * @param key
      * @return
      */
-    public Set<String> union(String key1, String key2) {
-        return redisTemplate.opsForSet().union(key1, key2);
+    public Long bitCount(String key) {
+        return (Long) redisTemplate.execute((RedisCallback<Long>) con -> con.bitCount(key.getBytes()));
     }
 
-    /**
-     * 返回集合key1中存在，但是key2中不存在的数据集合  sdiff
-     *
-     * @param key1
-     * @param key2
-     * @return
-     */
-    public Set<String> diff(String key1, String key2) {
-        return redisTemplate.opsForSet().difference(key1, key2);
+    public Long bitCount(String key, int start, int end) {
+        return (Long) redisTemplate.execute((RedisCallback<Long>) con -> con.bitCount(key.getBytes(), start, end));
     }
 
-    /*排序统计*/
-    /**
-     * 案例：商品的评论总是最新的在上面
-     */
-    public void sort(Integer userId1, String content) {
-        String key1 = "user:id:c:"+userId1;
-        Boolean add = redisTemplate.opsForZSet().add(key1, content, 1);
+    /*BITOP 命令支持 AND 、 OR 、 NOT 、 XOR 这四种操作中的任意一种参数：
+
+    BITOP AND destkey srckey1 … srckeyN ，对一个或多个 key 求逻辑与，并将结果保存到 destkey
+    BITOP OR destkey srckey1 … srckeyN，对一个或多个 key 求逻辑或，并将结果保存到 destkey
+    BITOP XOR destkey srckey1 … srckeyN，对一个或多个 key 求逻辑异或，并将结果保存到 destkey
+    BITOP NOT destkey srckey，对给定 key 求逻辑非，并将结果保存到 destkey*/
+    public Long bitOp(RedisStringCommands.BitOperation op, String saveKey, String... desKey) {
+        byte[][] bytes = new byte[desKey.length][];
+        for (int i = 0; i < desKey.length; i++) {
+            bytes[i] = desKey[i].getBytes();
+        }
+        return (Long) redisTemplate.execute((RedisCallback<Long>) con -> con.bitOp(op, saveKey.getBytes(), bytes));
     }
 
 }

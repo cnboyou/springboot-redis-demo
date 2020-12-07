@@ -19,59 +19,14 @@ import java.util.Set;
  * @Description: TODO
  */
 @Component
-public class RedisCache {
-    private static final Logger logger = LoggerFactory.getLogger(RedisCache.class);
+public class RedisSetCache {
+    private static final Logger logger = LoggerFactory.getLogger(RedisSetCache.class);
 
     private final RedisTemplate redisTemplate;
 
     @Autowired
-    public RedisCache(RedisTemplate redisTemplate) {
+    public RedisSetCache(RedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
-    }
-
-    /*应用场景： 打卡签到（1 签到、0 未签到）*/
-    /**
-     * 二值状态统计 bit
-     * key: 用户id+月份
-     * value: 天数
-     */
-    public void setUserSign(Integer userId, Date date) {
-        int year = DateUtil.year(date);
-        int month = DateUtil.month(date);
-        int day = DateUtil.dayOfMonth(date);
-        redisTemplate.opsForValue().setBit("user:id:" + userId + ":" +year+month, day - 1,true);
-    }
-
-    /**
-     * 获取某天是否打卡
-     * @param userId
-     * @param date
-     * @return
-     */
-    public Boolean getUserSignByDate(Integer userId, Date date) {
-        int year = DateUtil.year(date);
-        int month = DateUtil.month(date);
-        int day = DateUtil.dayOfMonth(date);
-        String key = "user:id:" + userId + ":" + year + month;
-        if (redisTemplate.hasKey(key)) {
-            return redisTemplate.opsForValue().getBit(key, day - 1);
-        }
-        return null;
-    }
-
-    /**
-     * 统计月份的打卡次数
-     * @param userId
-     * @param date
-     * @return
-     */
-    public Long countUserSignByMonth(Integer userId, Date date) {
-        int year = DateUtil.year(date);
-        int month = DateUtil.month(date);
-        Date dateTime = DateUtil.endOfMonth(date);
-        String key = "user:id:" + userId + ":" + year + month;
-        return (Long) redisTemplate.execute((RedisCallback<Long>) redisConnection
-                -> redisConnection.bitCount(key.getBytes()));
     }
 
     /*聚合统计*/
@@ -82,6 +37,17 @@ public class RedisCache {
     public Set getCommonFriend(Integer userId1, Integer userId2) {
         String key1 = "user:id:f:"+userId1;
         String key2 = "user:id:f:"+userId2;
+        return redisTemplate.opsForSet().intersect(key1, key2);
+    }
+
+    /**
+     * 返回多个集合的交集 sinter
+     *
+     * @param key1
+     * @param key2
+     * @return
+     */
+    public Set<String> intersect(String key1, String key2) {
         return redisTemplate.opsForSet().intersect(key1, key2);
     }
 
@@ -115,5 +81,47 @@ public class RedisCache {
         String key1 = "user:id:c:"+userId1;
         Boolean add = redisTemplate.opsForZSet().add(key1, content, 1);
     }
+
+
+    /**
+     * 新增一个  sadd
+     *
+     * @param key
+     * @param value
+     */
+    public void add(String key, String value) {
+        redisTemplate.opsForSet().add(key, value);
+    }
+
+    /**
+     * 删除集合中的值  srem
+     *
+     * @param key
+     * @param value
+     */
+    public void remove(String key, String value) {
+        redisTemplate.opsForSet().remove(key, value);
+    }
+
+    /**
+     * 判断是否包含  sismember
+     *
+     * @param key
+     * @param value
+     */
+    public void contains(String key, String value) {
+        redisTemplate.opsForSet().isMember(key, value);
+    }
+
+    /**
+     * 获取集合中所有的值 smembers
+     *
+     * @param key
+     * @return
+     */
+    public Set<String> values(String key) {
+        return redisTemplate.opsForSet().members(key);
+    }
+
 
 }
